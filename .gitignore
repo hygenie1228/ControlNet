@@ -12,6 +12,7 @@ image_log/
 models
 training
 experiment
+demo
 
 gradio_pose2image_private.py
 gradio_canny2image_private.py

@@ -22,10 +22,6 @@ model.load_state_dict(load_state_dict('./lightning_logs/version_2/checkpoints/ep
 model = model.cuda()
 ddim_sampler = DDIMSampler(model)
 
-
-input_image = cv2.imread('demo/input.png')
-text_prompt = "best quality, extremely detailed"
-
 image_resolution, detect_resolution = 512, 512
 num_samples = 1
 strength = 1.0
@@ -33,6 +29,10 @@ scale = 9.0
 eta = 0.0
 ddim_steps = 20
 guess_mode = True
+
+input_image = cv2.imread('demo/input.png')
+text_prompt = "" # "best quality, extremely detailed"
+
 
 with torch.no_grad():
     input_image = HWC3(input_image)
@@ -51,8 +51,8 @@ with torch.no_grad():
     if config.save_memory:
         model.low_vram_shift(is_diffusing=False)
 
-    cond = {"c_concat": [control], "c_crossattn": [model.get_learned_conditioning([text_prompt] * num_samples)]}
-    un_cond = {"c_concat": None if guess_mode else [control], "c_crossattn": [model.get_learned_conditioning([''] * num_samples)]}
+    cond = {"c_concat": [control]}
+    un_cond = {"c_concat": None if guess_mode else [control]}
     shape = (4, H // 8, W // 8)
 
     # cond['c_concat']: control_image, cond['c_crossattn']: positive prompt
@@ -72,4 +72,4 @@ with torch.no_grad():
 
     x_samples = model.decode_first_stage(samples)
     x_samples = (einops.rearrange(x_samples, 'b c h w -> b h w c') * 127.5 + 127.5).cpu().numpy().clip(0, 255).astype(np.uint8)
-    cv2.imwrite('debug.png', x_samples[0][:,:,::-1])
+    cv2.imwrite('demo/output.png', x_samples[0][:,:,::-1])
