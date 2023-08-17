@@ -18,7 +18,7 @@ from cldm.ddim_hacked import DDIMSampler
 apply_openpose = OpenposeDetector()
 
 model = create_model('./models/cldm_v15.yaml').cpu()
-model.load_state_dict(load_state_dict('./models/control_sd15_openpose.pth', location='cuda'))
+model.load_state_dict(load_state_dict('./lightning_logs/version_2/checkpoints/epoch=1-step=24999.ckpt', location='cuda'))
 model = model.cuda()
 ddim_sampler = DDIMSampler(model)
 
@@ -26,14 +26,12 @@ ddim_sampler = DDIMSampler(model)
 def process(input_image, prompt, a_prompt, n_prompt, num_samples, image_resolution, detect_resolution, ddim_steps, guess_mode, strength, scale, seed, eta):
     with torch.no_grad():
         input_image = HWC3(input_image)
-        detected_map, _ = apply_openpose(resize_image(input_image, detect_resolution))
-        detected_map = HWC3(detected_map)
         img = resize_image(input_image, image_resolution)
         H, W, C = img.shape
-        
-        detected_map = cv2.resize(detected_map, (W, H), interpolation=cv2.INTER_NEAREST)
 
-        control = torch.from_numpy(detected_map.copy()).float().cuda() / 255.0
+        input_image = cv2.resize(input_image, (W, H), interpolation=cv2.INTER_NEAREST)
+
+        control = torch.from_numpy(input_image.copy()).float().cuda() / 255.0
         control = torch.stack([control for _ in range(num_samples)], dim=0)
         control = einops.rearrange(control, 'b h w c -> b c h w').clone()
 
@@ -45,8 +43,11 @@ def process(input_image, prompt, a_prompt, n_prompt, num_samples, image_resoluti
             model.low_vram_shift(is_diffusing=False)
 
         cond = {"c_concat": [control], "c_crossattn": [model.get_learned_conditioning([prompt + ', ' + a_prompt] * num_samples)]}
-        un_cond = {"c_concat": None if guess_mode else [control], "c_crossattn": None}
+        un_cond = {"c_concat": None if guess_mode else [control], "c_crossattn": [model.get_learned_conditioning([n_prompt] * num_samples)]}
         shape = (4, H // 8, W // 8)
+
+        # cond['c_concat']: control_image, cond['c_crossattn']: positive prompt
+        # cond['c_concat']: control_image, cond['c_crossattn']: negative prompt
 
         if config.save_memory:
             model.low_vram_shift(is_diffusing=True)
@@ -64,7 +65,7 @@ def process(input_image, prompt, a_prompt, n_prompt, num_samples, image_resoluti
         x_samples = (einops.rearrange(x_samples, 'b c h w -> b h w c') * 127.5 + 127.5).cpu().numpy().clip(0, 255).astype(np.uint8)
 
         results = [x_samples[i] for i in range(num_samples)]
-    return [detected_map] + results
+    return [input_image] + results
 
 
 block = gr.Blocks().queue()

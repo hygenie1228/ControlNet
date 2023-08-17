@@ -4,12 +4,14 @@ training/
 lightning_logs/
 image_log/
 
+*.png
 *.pth
 *.pt
 *.ckpt
 *.safetensors
 models
 training
+experiment
 
 gradio_pose2image_private.py
 gradio_canny2image_private.py
