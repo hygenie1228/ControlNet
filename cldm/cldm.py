@@ -162,6 +162,29 @@ class ControlNet(nn.Module):
             zero_module(conv_nd(dims, 256, model_channels, 3, padding=1))
         )
 
+
+        self.input_hint_block_2 = TimestepEmbedSequential(
+            conv_nd(dims, hint_channels, 16, 3, padding=1),
+            nn.SiLU(),
+            conv_nd(dims, 16, 16, 3, padding=1),
+            nn.SiLU(),
+            conv_nd(dims, 16, 32, 3, padding=1, stride=2),
+            nn.SiLU(),
+            conv_nd(dims, 32, 32, 3, padding=1),
+            nn.SiLU(),
+            conv_nd(dims, 32, 96, 3, padding=1, stride=2),
+            nn.SiLU(),
+            conv_nd(dims, 96, 96, 3, padding=1),
+            nn.SiLU(),
+            conv_nd(dims, 96, 256, 3, padding=1, stride=2),
+            nn.SiLU(),
+            zero_module(conv_nd(dims, 256, model_channels, 3, padding=1))
+        )
+
+        # sum(p.numel() for p in model.parameters() if p.requires_grad)
+        # import pdb; pdb.set_trace()
+
+
         self._feature_size = model_channels
         input_block_chans = [model_channels]
         ch = model_channels
@@ -285,7 +308,8 @@ class ControlNet(nn.Module):
         t_emb = timestep_embedding(timesteps, self.model_channels, repeat_only=False)
         emb = self.time_embed(t_emb)
 
-        guided_hint = self.input_hint_block(hint, emb, context)
+        guided_hint = self.input_hint_block(hint[:,:3], emb, context)
+        guided_hint += self.input_hint_block_2(hint[:,3:], emb, context)
 
         outs = []
 

@@ -34,9 +34,10 @@ class ImageLogger(Callback):
             grid = grid.transpose(0, 1).transpose(1, 2).squeeze(-1)
             grid = grid.numpy()
             grid = (grid * 255).astype(np.uint8)
-            filename = "{}_gs-{:06}_e-{:06}_b-{:06}.png".format(k, global_step, current_epoch, batch_idx)
-            path = os.path.join(root, filename)
+            filename = "gs-{:06}_e-{:06}_b-{:06}.png".format(global_step, current_epoch, batch_idx)
+            path = os.path.join(root, k, filename)
             os.makedirs(os.path.split(path)[0], exist_ok=True)
+            os.makedirs(os.path.join(root, k), exist_ok=True)
             Image.fromarray(grid).save(path)
 
     def log_img(self, pl_module, batch, batch_idx, split="train"):
@@ -62,8 +63,14 @@ class ImageLogger(Callback):
                     if self.clamp:
                         images[k] = torch.clamp(images[k], -1., 1.)
 
+            if images['control'].shape[1] > 3:
+                images['control_1'] = images['control'][:,:3]
+                images['control_2'] = images['control'][:,3:]
+                del images['control']
+
+
             self.log_local(pl_module.logger.save_dir, split, images,
-                           pl_module.global_step, pl_module.current_epoch, batch_idx)
+                        pl_module.global_step, pl_module.current_epoch, batch_idx)
 
             if is_train:
                 pl_module.train()
