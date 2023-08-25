@@ -156,7 +156,7 @@ class Renderer:
 image_resolution = 256
 model = create_model('./models/depthmap.yaml').cpu()
 model_path = 'experiment/exp_08-22_17:26:04/controlnet/version_0/checkpoints/epoch=25-step=324999.ckpt'
- 
+
 model.load_state_dict(load_state_dict(model_path, location='cuda'))
 model = model.cuda()
 ddim_sampler = DDIMSampler(model)

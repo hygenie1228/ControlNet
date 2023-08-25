@@ -182,7 +182,7 @@ img_dir = 'data/THuman2.0/parsed'
 db = json.load(open('data/THuman2.0/thuman_test.json', 'r'))
 datalist = []
 for subject in db.keys(): datalist.extend(db[subject])
-data = datalist[747]
+data = datalist[0]
 
 
 img_path = osp.join(img_dir, data['input_img_path'])
