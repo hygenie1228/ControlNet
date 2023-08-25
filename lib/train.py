@@ -18,7 +18,7 @@ from cldm.model import create_model, load_state_dict
 
 
 # Configs
-resume_path = './models/control_sd15_ini.ckpt'
+resume_path = 'models/zero123.ckpt'
 batch_size = 4
 logger_freq = 1000
 learning_rate = 1e-4

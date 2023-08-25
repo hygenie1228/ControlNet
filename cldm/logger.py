@@ -63,11 +63,10 @@ class ImageLogger(Callback):
                     if self.clamp:
                         images[k] = torch.clamp(images[k], -1., 1.)
 
-            if images['control'].shape[1] > 3:
-                images['control_1'] = images['control'][:,:3]
-                images['control_2'] = images['control'][:,3:]
-                del images['control']
-
+            # if images['control'].shape[1] > 3:
+            #     images['control_1'] = images['control'][:,:3]
+            #     images['control_2'] = images['control'][:,3:]
+            #     del images['control']
 
             self.log_local(pl_module.logger.save_dir, split, images,
                         pl_module.global_step, pl_module.current_epoch, batch_idx)

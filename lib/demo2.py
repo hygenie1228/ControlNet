@@ -16,11 +16,13 @@ import math
 import einops
 import numpy as np
 import torch
+from torchvision import transforms
 import random
 import datetime
 import trimesh
 import pyrender
 from pyrender.constants import RenderFlags
+from scipy.spatial.transform import Rotation
 
 from pytorch_lightning import seed_everything
 import pytorch_lightning as pl
@@ -157,11 +159,19 @@ image_resolution = 256
 model = create_model('./models/depthmap.yaml').cpu()
 model_path = 'experiment/exp_08-22_17:26:04/controlnet/version_0/checkpoints/epoch=25-step=324999.ckpt'
 
-model.load_state_dict(load_state_dict(model_path, location='cuda'))
+model_dict = load_state_dict('models/zero123.ckpt', location='cuda')
+target_dict = {}
+for k, v in model_dict.items():
+    if k.startswith('model_ema.'): continue
+    else: target_dict[k] = v
+
+model.load_state_dict(target_dict, strict=False)
+# model.load_state_dict(load_state_dict(model_path, location='cuda'), strict=False)
 model = model.cuda()
 ddim_sampler = DDIMSampler(model)
 
 num_samples = 1
+n_samples = num_samples
 strength = args.strength
 scale = args.scale
 guess_mode = False
@@ -186,9 +196,10 @@ data = datalist[747]
 
 
 img_path = osp.join(img_dir, data['input_img_path'])
-input_img = cv2.imread(img_path)
+input_img = cv2.imread('/home/namhj/ControlNet/input.png')[:,:,::-1]
 input_img = cv2.resize(input_img, (image_resolution, image_resolution))
-input_image = HWC3(input_img)
+input_im = (input_img / 255.0).astype(np.float32)
+# input_image = HWC3(input_img)
 H, W, C = input_img.shape
 
 img_name = img_path.split('/')[-1]
@@ -209,24 +220,42 @@ for i in tqdm(range(180)):
         depth = cv2.resize(depth, (image_resolution, image_resolution)).astype(np.uint8)
         control_image = HWC3(depth)
 
-        control_image = np.concatenate((input_image, control_image), -1)
-        control = torch.from_numpy(control_image.copy()).float().cuda() / 255.0
-        control = torch.stack([control for _ in range(num_samples)], dim=0)
-        control = einops.rearrange(control, 'b h w c -> b c h w').clone()
+        input_im = transforms.ToTensor()(input_im).unsqueeze(0)
+        # input_im = input_im[0].permute(1,2,0).cpu().numpy()
+        # cv2.imwrite('debug2.png', input_im[:,:,::-1]*255)
+        # import pdb; pdb.set_trace()
+        input_im = input_im * 2 - 1
+        input_im = input_im.to(model.device)
+        
+        R_1 = np.load('/home/namhj/ControlNet/data/THuman2.0/parsed/0000/camera/0000.npz')['R']
+        R_2 = np.load('/home/namhj/ControlNet/data/THuman2.0/parsed/0000/camera/0003.npz')['R']
+        R = R_2 @ R_1.transpose()
+        R = Rotation.from_matrix(R)
+        R = R.as_euler('yxz', degrees=True)
+        x, y, z = R[1] * -1, R[0] * -1, 0        
 
         if config.save_memory:
             model.low_vram_shift(is_diffusing=False)
 
-        uc_cross = model.get_unconditional_conditioning(1)
-        if text_prompt is not None:
-            cond = {"c_concat": [control], "c_crossattn": [model.get_learned_conditioning([text_prompt] * num_samples)]}
-        else:
-            cond = {"c_concat": [control], "c_crossattn": [uc_cross]}
-        un_cond = {"c_concat": None if guess_mode else [control], "c_crossattn": [uc_cross]}
+        c = model.get_learned_conditioning(input_im).tile(n_samples, 1, 1)
+        T = torch.tensor([math.radians(x), math.sin(math.radians(y)), math.cos(math.radians(y)), z])
+        T = T[None, None, :].repeat(n_samples, 1, 1).to(c.device)
+        c = torch.cat([c, T], dim=-1)
+        c = model.cc_projection(c)
+        
+        cond = {}
+        cond['c_crossattn'] = [c]
+        cond['c_concat'] = [model.encode_first_stage((input_im.to(c.device))).mode().detach().repeat(n_samples, 1, 1, 1)]
+
+        un_cond = {}
+        un_cond['c_concat'] = [torch.zeros(n_samples, 4, H // 8, W // 8).to(c.device)]
+        un_cond['c_crossattn'] = [torch.zeros_like(c).to(c.device)]
         shape = (4, H // 8, W // 8)
+    
 
         if config.save_memory:
             model.low_vram_shift(is_diffusing=True)
+       
 
         model.control_scales = [strength * (0.825 ** float(12 - i)) for i in range(13)] if guess_mode else ([strength] * 13)  # Magic number. IDK why. Perhaps because 0.825**12<0.01 but 0.826**12>0.01
         samples, intermediates = ddim_sampler.sample(ddim_steps, num_samples,
@@ -239,4 +268,5 @@ for i in tqdm(range(180)):
 
         x_samples = model.decode_first_stage(samples)
         x_samples = (einops.rearrange(x_samples, 'b c h w -> b h w c') * 127.5 + 127.5).cpu().numpy().clip(0, 255).astype(np.uint8)
-        cv2.imwrite(osp.join('debug', f'{i:04d}.png'), x_samples[0][:,:,::-1])
+        cv2.imwrite('debug.png', x_samples[0][:,:,::-1])
+        import pdb; pdb.set_trace()

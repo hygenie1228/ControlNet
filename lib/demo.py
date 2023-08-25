@@ -234,9 +234,12 @@ for i in tqdm(range(180)):
                                                         unconditional_guidance_scale=scale,
                                                         unconditional_conditioning=un_cond)
 
+    
         if config.save_memory:
             model.low_vram_shift(is_diffusing=False)
 
         x_samples = model.decode_first_stage(samples)
         x_samples = (einops.rearrange(x_samples, 'b c h w -> b h w c') * 127.5 + 127.5).cpu().numpy().clip(0, 255).astype(np.uint8)
         cv2.imwrite(osp.join('debug', f'{i:04d}.png'), x_samples[0][:,:,::-1])
+
+        import pdb; pdb.set_trace()
