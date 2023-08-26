@@ -163,27 +163,6 @@ class ControlNet(nn.Module):
         )
 
 
-        self.input_hint_block_2 = TimestepEmbedSequential(
-            conv_nd(dims, hint_channels, 16, 3, padding=1),
-            nn.SiLU(),
-            conv_nd(dims, 16, 16, 3, padding=1),
-            nn.SiLU(),
-            conv_nd(dims, 16, 32, 3, padding=1, stride=2),
-            nn.SiLU(),
-            conv_nd(dims, 32, 32, 3, padding=1),
-            nn.SiLU(),
-            conv_nd(dims, 32, 96, 3, padding=1, stride=2),
-            nn.SiLU(),
-            conv_nd(dims, 96, 96, 3, padding=1),
-            nn.SiLU(),
-            conv_nd(dims, 96, 256, 3, padding=1, stride=2),
-            nn.SiLU(),
-            zero_module(conv_nd(dims, 256, model_channels, 3, padding=1))
-        )
-
-        # sum(p.numel() for p in model.parameters() if p.requires_grad)
-        # import pdb; pdb.set_trace()
-
 
         self._feature_size = model_channels
         input_block_chans = [model_channels]
@@ -308,13 +287,9 @@ class ControlNet(nn.Module):
         t_emb = timestep_embedding(timesteps, self.model_channels, repeat_only=False)
         emb = self.time_embed(t_emb)
 
-        import pdb; pdb.set_trace()
-
         guided_hint = self.input_hint_block(hint[:,:3], emb, context)
-        guided_hint += self.input_hint_block_2(hint[:,3:], emb, context)
 
         outs = []
-
         h = x.type(self.dtype)
         for module, zero_conv in zip(self.input_blocks, self.zero_convs):
             if guided_hint is not None:
@@ -342,6 +317,7 @@ class ControlLDM(LatentDiffusion):
 
     @torch.no_grad()
     def get_input(self, batch, k, bs=None, *args, **kwargs):
+        # Data pre-processing
         x, cond = super().get_input(batch, self.first_stage_key, *args, **kwargs)
         control = batch[self.control_key]
         if bs is not None:
@@ -349,10 +325,13 @@ class ControlLDM(LatentDiffusion):
         control = control.to(self.device)
         control = control.to(memory_format=torch.contiguous_format).float()
         
-        source, c, T = cond['xc'], cond['c'], control
+        T = batch['pose'].to(self.device)
+        T = T .to(memory_format=torch.contiguous_format).float()
+
+        source, c = cond['xc'], cond['c']
         c = torch.cat([c, T[:,None]], dim=-1)
         c = self.cc_projection(c)
-        return x, dict(c_concat=[source], c_crossattn=[c])
+        return x, dict(c_concat=[source], c_crossattn=[c], c_control=[control])
 
     def apply_model(self, x_noisy, t, cond, *args, **kwargs):
         assert isinstance(cond, dict)
@@ -366,16 +345,11 @@ class ControlLDM(LatentDiffusion):
         if cond['c_concat'] is None:
             eps = diffusion_model(x=x_noisy, timesteps=t, context=cond_txt, control=None, only_mid_control=self.only_mid_control)
         else:
-            # control = self.control_model(x=x_noisy, hint=torch.cat(cond['c_concat'], 1), timesteps=t, context=cond_txt)
-            # control = [c * scale for c, scale in zip(control, self.control_scales)]
-
-            # control = self.control_model(x=x_noisy, hint=torch.cat(cond['c_concat'], 1), timesteps=t, context=cond_txt)
-            # control = [c * scale for c, scale in zip(control, self.control_scales)]
-            try:
-                x_noisy = torch.cat([x_noisy] + cond['c_concat'], dim=1)
-                eps = diffusion_model(x=x_noisy, timesteps=t, context=cond_txt, control=None, only_mid_control=self.only_mid_control)
-            except:
-                import pdb; pdb.set_trace()
+            control = self.control_model(x=x_noisy, hint=torch.cat(cond['c_control'], 1), timesteps=t, context=cond_txt)
+            control = [c * scale for c, scale in zip(control, self.control_scales)]
+            
+            x_noisy = torch.cat([x_noisy] + cond['c_concat'], dim=1)
+            eps = diffusion_model(x=x_noisy, timesteps=t, context=cond_txt, control=control, only_mid_control=self.only_mid_control)
         return eps
 
     @torch.no_grad()
@@ -454,10 +428,12 @@ class ControlLDM(LatentDiffusion):
 
         if unconditional_guidance_scale > 1.0:
             # uc_cross = self.get_unconditional_conditioning(N)
-            c_cat, cc = c['c_concat'][0], c['c_crossattn'][0]
+            c_cat, cc, c_control = c['c_concat'][0], c['c_crossattn'][0], c['c_control'][0]
             uc_cat = torch.zeros_like(c_cat).to(cc.device)
-            uc_full = {"c_concat": [uc_cat], 'c_crossattn': [torch.zeros_like(cc).to(cc.device)]}
-            
+            uc_crossattn = torch.zeros_like(cc).to(cc.device)
+            uc_control = torch.zeros_like(c_control).to(cc.device)
+            uc_full = {"c_concat": None, 'c_crossattn': [uc_crossattn], 'c_control': [uc_control]}
+
             samples_cfg, _ = self.sample_log(cond=c,
                                              batch_size=N, ddim=use_ddim,
                                              ddim_steps=ddim_steps, eta=ddim_eta,
