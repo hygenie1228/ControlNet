@@ -9,7 +9,7 @@ image_log/
 *.pt
 *.ckpt
 *.safetensors
-models
+/models
 training
 experiment
 demo
