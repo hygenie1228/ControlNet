@@ -39,7 +39,7 @@ args = parser.parse_args()
 # Configs
 image_resolution = 256
 model = create_model('./models/depthmap.yaml').cpu()
-model_path = 'experiment/exp_08-22_17:26:04/controlnet/version_0/checkpoints/epoch=31-step=399999.ckpt'
+model_path = 'experiment/exp_08-22_17:26:04/controlnet/version_0/checkpoints/epoch=21-step=274999.ckpt'
  
 model.load_state_dict(load_state_dict(model_path, location='cuda'))
 model = model.cuda()
