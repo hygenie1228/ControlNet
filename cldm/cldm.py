@@ -308,6 +308,8 @@ class ControlNet(nn.Module):
         t_emb = timestep_embedding(timesteps, self.model_channels, repeat_only=False)
         emb = self.time_embed(t_emb)
 
+        import pdb; pdb.set_trace()
+
         guided_hint = self.input_hint_block(hint[:,:3], emb, context)
         guided_hint += self.input_hint_block_2(hint[:,3:], emb, context)
 
@@ -340,14 +342,17 @@ class ControlLDM(LatentDiffusion):
 
     @torch.no_grad()
     def get_input(self, batch, k, bs=None, *args, **kwargs):
-        x, c = super().get_input(batch, self.first_stage_key, *args, **kwargs)
+        x, cond = super().get_input(batch, self.first_stage_key, *args, **kwargs)
         control = batch[self.control_key]
         if bs is not None:
             control = control[:bs]
         control = control.to(self.device)
-        # control = einops.rearrange(control, 'b h w c -> b c h w')
         control = control.to(memory_format=torch.contiguous_format).float()
-        return x, dict(c_crossattn=[x], c_concat=[c, control])
+        
+        source, c, T = cond['xc'], cond['c'], control
+        c = torch.cat([c, T[:,None]], dim=-1)
+        c = self.cc_projection(c)
+        return x, dict(c_concat=[source], c_crossattn=[c])
 
     def apply_model(self, x_noisy, t, cond, *args, **kwargs):
         assert isinstance(cond, dict)
@@ -363,7 +368,6 @@ class ControlLDM(LatentDiffusion):
         else:
             # control = self.control_model(x=x_noisy, hint=torch.cat(cond['c_concat'], 1), timesteps=t, context=cond_txt)
             # control = [c * scale for c, scale in zip(control, self.control_scales)]
-
 
             # control = self.control_model(x=x_noisy, hint=torch.cat(cond['c_concat'], 1), timesteps=t, context=cond_txt)
             # control = [c * scale for c, scale in zip(control, self.control_scales)]
@@ -416,7 +420,7 @@ class ControlLDM(LatentDiffusion):
         N = min(z.shape[0], N)
         n_row = min(z.shape[0], n_row)
         log["reconstruction"] = self.decode_first_stage(z)
-        log["conditioning"] = batch['txt']
+        log["conditioning"] = batch['source']
         # log["conditioning"] = log_txt_as_img((512, 512), batch[self.cond_stage_key], size=16)
 
         if plot_diffusion_rows:
@@ -449,19 +453,12 @@ class ControlLDM(LatentDiffusion):
                 log["denoise_row"] = denoise_grid
 
         if unconditional_guidance_scale > 1.0:
-            x = c['c_crossattn'][0]
-            c, T = c['c_concat']
-            c = torch.cat([c, T[:,None]], dim=-1)
-            c = self.cc_projection(c)
-
-            new_cond = {}
-            new_cond['c_crossattn'] = [c]
-            new_cond['c_concat'] = [x]
             # uc_cross = self.get_unconditional_conditioning(N)
-            uc_cat = torch.zeros_like(x).to(c.device)
-            uc_full = {"c_concat": [uc_cat], 'c_crossattn': [c]}
+            c_cat, cc = c['c_concat'][0], c['c_crossattn'][0]
+            uc_cat = torch.zeros_like(c_cat).to(cc.device)
+            uc_full = {"c_concat": [uc_cat], 'c_crossattn': [torch.zeros_like(cc).to(cc.device)]}
             
-            samples_cfg, _ = self.sample_log(cond=new_cond,
+            samples_cfg, _ = self.sample_log(cond=c,
                                              batch_size=N, ddim=use_ddim,
                                              ddim_steps=ddim_steps, eta=ddim_eta,
                                              unconditional_guidance_scale=unconditional_guidance_scale,

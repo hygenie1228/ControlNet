@@ -33,7 +33,7 @@ class MyDataset(Dataset):
 
         source_1 = cv2.imread('/home/namhj/ControlNet/input.png')
         source_2 = cv2.imread('/home/namhj/ControlNet/input.png')
-        target = cv2.imread('/home/namhj/ControlNet/input.png')
+        target = cv2.imread(img_path_2)
 
         # Do not forget that OpenCV read images in BGR order.
         source_1 = cv2.cvtColor(source_1, cv2.COLOR_BGR2RGB)
@@ -63,5 +63,5 @@ class MyDataset(Dataset):
         x, y, z = R[1] * -1, R[0] * -1, 0.0  
         x, y, z = 0, 90.0, 0   
         T = np.array([math.radians(x), math.sin(math.radians(y)), math.cos(math.radians(y)), z])
-        return dict(jpg=target, txt=source_1, hint=T, pose=np.zeros((10,)))
+        return dict(jpg=target, source=source_1, hint=T, pose=T)
 
