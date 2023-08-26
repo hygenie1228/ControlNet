@@ -10,7 +10,7 @@ import lpips
 from metric import psnr, ssim
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--exp-dir', default='experiment/exp_08-22_17:23:06', required=False, type=str)
+parser.add_argument('--exp-dir', default='experiment/exp_08-27_01:30:18', required=False, type=str)
 args = parser.parse_args()
 
 # Linearly calibrated models (LPIPS)
@@ -26,6 +26,9 @@ for target_path in tqdm(img_list):
     imgname = target_path.split('/')[-1]
     output_image =  lpips.load_image(osp.join(args.exp_dir, imgname))
     target_image = lpips.load_image(target_path)
+
+    image_resolution = output_image.shape[:2][::-1]
+    target_image = cv2.resize(target_image, image_resolution)
 
     total_psnr += psnr(output_image, target_image)
     total_ssim += ssim(output_image, target_image)
