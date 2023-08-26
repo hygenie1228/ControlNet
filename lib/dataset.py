@@ -33,7 +33,7 @@ class MyDataset(Dataset):
 
         # source_1 = cv2.imread('/home/namhj/ControlNet/input.png')
         source_1 = cv2.imread(img_path_1)
-        source_2 = cv2.imread(img_path_2)
+        source_2 = cv2.imread(depth_path_2)
         target = cv2.imread(img_path_2)
 
         # Do not forget that OpenCV read images in BGR order.
@@ -65,6 +65,7 @@ class MyDataset(Dataset):
         R = Rotation.from_matrix(R)
         R = R.as_euler('yxz', degrees=True)
         x, y, z = R[1] * -1, R[0] * -1, 0.0
+        # x, y, z = 0, 90, 0
         T = np.array([math.radians(x), math.sin(math.radians(y)), math.cos(math.radians(y)), z])
         return dict(jpg=target, source=source_1, hint=source_2, pose=T)
 
