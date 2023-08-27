@@ -8,6 +8,7 @@ image_log/
 *.pth
 *.pt
 *.ckpt
+*.mp4
 *.safetensors
 /models
 training

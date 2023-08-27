@@ -5,6 +5,7 @@ import os
 import os.path as osp
 import argparse
 from tqdm import tqdm
+import cv2
 
 import lpips
 from metric import psnr, ssim

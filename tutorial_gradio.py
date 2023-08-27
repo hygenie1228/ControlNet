@@ -18,7 +18,7 @@ from cldm.ddim_hacked import DDIMSampler
 apply_openpose = OpenposeDetector()
 
 model = create_model('./models/cldm_v15.yaml').cpu()
-model.load_state_dict(load_state_dict('./lightning_logs/version_2/checkpoints/epoch=1-step=24999.ckpt', location='cuda'))
+model.load_state_dict(load_state_dict('experiment/exp_08-19_13:59:10/controlnet/version_0/checkpoints/epoch=12-step=162499.ckpt', location='cuda'))
 model = model.cuda()
 ddim_sampler = DDIMSampler(model)
 
@@ -75,8 +75,23 @@ with block:
     with gr.Row():
         with gr.Column():
             input_image = gr.Image(source='upload', type="numpy")
+
+        with gr.Column():
+            result_gallery = gr.Gallery(label='Output', show_label=False, elem_id="gallery").style(grid=2, height='auto')
+
+    with gr.Row():
+        with gr.Column():
+            gr.Examples(
+                examples=[["demo/input.png"]],
+                inputs=[input_image],
+                outputs=[result_gallery],
+                fn=process,
+                cache_examples=False,
+            )
+
             prompt = gr.Textbox(label="Prompt")
             run_button = gr.Button(label="Run")
+
             with gr.Accordion("Advanced options", open=False):
                 num_samples = gr.Slider(label="Images", minimum=1, maximum=12, value=1, step=1)
                 image_resolution = gr.Slider(label="Image Resolution", minimum=256, maximum=768, value=512, step=64)
@@ -90,8 +105,10 @@ with block:
                 a_prompt = gr.Textbox(label="Added Prompt", value='best quality, extremely detailed')
                 n_prompt = gr.Textbox(label="Negative Prompt",
                                       value='longbody, lowres, bad anatomy, bad hands, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality')
+
         with gr.Column():
-            result_gallery = gr.Gallery(label='Output', show_label=False, elem_id="gallery").style(grid=2, height='auto')
+            pass
+
     ips = [input_image, prompt, a_prompt, n_prompt, num_samples, image_resolution, detect_resolution, ddim_steps, guess_mode, strength, scale, seed, eta]
     run_button.click(fn=process, inputs=ips, outputs=[result_gallery])
 

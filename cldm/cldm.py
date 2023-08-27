@@ -324,7 +324,7 @@ class ControlLDM(LatentDiffusion):
         control = control.to(memory_format=torch.contiguous_format).float()
         
         T = batch['pose'].to(self.device)
-        T = T .to(memory_format=torch.contiguous_format).float()
+        T = T.to(memory_format=torch.contiguous_format).float()
 
         source, c = cond['xc'], cond['c']
         c = torch.cat([c, T[:,None]], dim=-1)
@@ -341,6 +341,7 @@ class ControlLDM(LatentDiffusion):
             cond_txt = torch.cat(cond['c_crossattn'], 1)
         
         x_noisy = torch.cat([x_noisy] + cond['c_concat'], dim=1)
+        
         if 'c_control' not in cond:
             eps = diffusion_model(x=x_noisy, timesteps=t, context=cond_txt, control=None, only_mid_control=self.only_mid_control)
         else:
@@ -432,6 +433,7 @@ class ControlLDM(LatentDiffusion):
             uc_cat = torch.zeros_like(c_cat).to(cc.device)
             uc_crossattn = torch.zeros_like(cc).to(cc.device)
             uc_full = {"c_concat": [uc_cat], 'c_crossattn': [uc_crossattn]}
+
             samples_cfg, _ = self.sample_log(cond=c,
                                              batch_size=N, ddim=use_ddim,
                                              ddim_steps=ddim_steps, eta=ddim_eta,
