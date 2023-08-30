@@ -16,6 +16,9 @@ import numpy as np
 import torch
 import random
 import datetime
+import math
+from torchvision import transforms
+from scipy.spatial.transform import Rotation
 
 from pytorch_lightning import seed_everything
 import pytorch_lightning as pl
@@ -31,15 +34,15 @@ from cldm.ddim_hacked import DDIMSampler
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--strength', required=False, type=float, default=1.0)
-parser.add_argument('--scale', required=False, type=float, default=9.0)
+parser.add_argument('--scale', required=False, type=float, default=3.0)
 parser.add_argument('--ddim_steps', required=False, type=float, default=20)
 args = parser.parse_args()
 
 
 # Configs
 image_resolution = 256
-model = create_model('./models/depthmap.yaml').cpu()
-model_path = 'experiment/exp_08-22_17:26:04/controlnet/version_0/checkpoints/epoch=25-step=324999.ckpt'
+model = create_model('./models/zero123.yaml').cpu()
+model_path = 'experiment/exp_08-26_20:15:15/controlnet/version_0/checkpoints/epoch=21-step=274999.ckpt'
  
 model.load_state_dict(load_state_dict(model_path, location='cuda'))
 model = model.cuda()
@@ -80,41 +83,49 @@ for i, data in tqdm(enumerate(datalist)):
     input_img = cv2.resize(input_img, (image_resolution, image_resolution))
     control_img = cv2.resize(control_img, (image_resolution, image_resolution))
 
+    R_1 = np.load(img_path.replace('/img', '/camera').replace('.jpg', '.npz'))['R']
+    R_2 = np.load(taget_img_path.replace('/img', '/camera').replace('.jpg', '.npz'))['R']
+    R = R_2 @ R_1.transpose()
+    R = Rotation.from_matrix(R)
+    R = R.as_euler('yxz', degrees=True)
+    x, y, z = R[1] * -1, R[0] * -1, 0        
+
     with torch.no_grad():
         input_image = HWC3(input_img)
-        control_image = HWC3(control_img)
-        H, W, C = input_img.shape
+        img = resize_image(input_image, image_resolution)
+        img = img.astype(np.float32) / 255.0
+        img = transforms.ToTensor()(img).unsqueeze(0).cuda()
+        img = img * 2 - 1
+        H, W = image_resolution, image_resolution
 
-        input_image = cv2.resize(input_image, (W, H), interpolation=cv2.INTER_NEAREST)
+        c_cat = model.encode_first_stage(img).mode()
+        T = torch.tensor([math.radians(x), math.sin(math.radians(y)), math.cos(math.radians(y)), 0.0])
+        T = T.unsqueeze(0).cuda()
+        c = model.get_learned_conditioning(img)
+        c = torch.cat([c, T[:,None]], dim=-1)
+        c_crossattn = model.cc_projection(c)
 
-        control_image = np.concatenate((input_image, control_image), -1)
-        control = torch.from_numpy(control_image.copy()).float().cuda() / 255.0
-        control = torch.stack([control for _ in range(num_samples)], dim=0)
-        control = einops.rearrange(control, 'b h w c -> b c h w').clone()
 
-        if config.save_memory:
-            model.low_vram_shift(is_diffusing=False)
+        depth = control_img
+        depth = cv2.resize(depth, (image_resolution, image_resolution))
+        c_control = depth.astype(np.float32) / 255.0
+        c_control = transforms.ToTensor()(c_control).unsqueeze(0).cuda()
+        c_control = c_control * 2 - 1      
 
-        uc_cross = model.get_unconditional_conditioning(1)
-        if text_prompt is not None:
-            cond = {"c_concat": [control], "c_crossattn": [model.get_learned_conditioning([text_prompt] * num_samples)]}
-        else:
-            cond = {"c_concat": [control], "c_crossattn": [uc_cross]}
-        un_cond = {"c_concat": None if guess_mode else [control], "c_crossattn": [uc_cross]}
+
+        uc_cat = torch.zeros_like(c_cat).to(c_cat.device)
+        uc_crossattn = torch.zeros_like(c_crossattn).to(c_crossattn.device)
+        cond = {"c_concat": [c_cat.repeat(num_samples,1,1,1)], "c_crossattn": [c_crossattn.repeat(num_samples,1,1)], "c_control": [c_control.repeat(num_samples,1,1,1)]}
+        un_cond = {"c_concat": [uc_cat.repeat(num_samples,1,1,1)], "c_crossattn": [uc_crossattn.repeat(num_samples,1,1)]}
         shape = (4, H // 8, W // 8)
 
-        if config.save_memory:
-            model.low_vram_shift(is_diffusing=True)
-
-        model.control_scales = [strength * (0.825 ** float(12 - i)) for i in range(13)] if guess_mode else ([strength] * 13)  # Magic number. IDK why. Perhaps because 0.825**12<0.01 but 0.826**12>0.01
+        model.control_scales = ([strength] * 13)
         samples, intermediates = ddim_sampler.sample(ddim_steps, num_samples,
                                                         shape, cond, verbose=False, eta=eta,
                                                         unconditional_guidance_scale=scale,
                                                         unconditional_conditioning=un_cond)
 
-        if config.save_memory:
-            model.low_vram_shift(is_diffusing=False)
 
         x_samples = model.decode_first_stage(samples)
         x_samples = (einops.rearrange(x_samples, 'b c h w -> b h w c') * 127.5 + 127.5).cpu().numpy().clip(0, 255).astype(np.uint8)
-        cv2.imwrite(osp.join(save_folder_path, f'{i:04d}.png'), x_samples[0][:,:,::-1])
+        cv2.imwrite(osp.join(save_folder_path, f'{i:04d}.png'), x_samples[0])

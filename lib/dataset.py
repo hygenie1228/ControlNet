@@ -32,9 +32,9 @@ class MyDataset(Dataset):
         depth_path_2 = osp.join(self.img_dir, data[i2]['img_path'].replace('/img', '/depth').replace('.jpg', '.png'))
 
         # source_1 = cv2.imread('/home/namhj/ControlNet/input.png')
-        source_1 = cv2.imread(img_path_1)
+        source_1 = cv2.imread(img_path_1)[:,:,::-1]
         source_2 = cv2.imread(depth_path_2)
-        target = cv2.imread(img_path_2)
+        target = cv2.imread(img_path_2)[:,:,::-1]
 
         # Do not forget that OpenCV read images in BGR order.
         source_1 = cv2.cvtColor(source_1, cv2.COLOR_BGR2RGB)

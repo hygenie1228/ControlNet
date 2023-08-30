@@ -182,12 +182,12 @@ img_dir = 'data/THuman2.0/parsed'
 db = json.load(open('data/THuman2.0/thuman_test.json', 'r'))
 datalist = []
 for subject in db.keys(): datalist.extend(db[subject])
-data = datalist[4285]
+data = datalist[0]
 
 img_path = osp.join(img_dir, data['input_img_path'])
 input_img = cv2.imread(img_path)
 input_img = cv2.resize(input_img, (image_resolution, image_resolution))
-cv2.imwrite('debug3.png', input_img)
+cv2.imwrite('debug4.png', input_img)
 input_image = HWC3(input_img)
 H, W, C = input_img.shape
 
@@ -242,5 +242,5 @@ for i in tqdm(range(180)):
 
         x_samples = model.decode_first_stage(samples)
         x_samples = (einops.rearrange(x_samples, 'b c h w -> b h w c') * 127.5 + 127.5).cpu().numpy().clip(0, 255).astype(np.uint8)
-        cv2.imwrite(osp.join('debug3', f'{i:04d}.png'), x_samples[0])
+        cv2.imwrite(osp.join('debug4', f'{i:04d}.png'), x_samples[0][:,:,::-1])
 

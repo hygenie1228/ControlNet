@@ -140,7 +140,7 @@ class Renderer:
 # Configs
 image_resolution = 256
 model = create_model('./models/zero123.yaml').cpu()
-model_path = 'experiment/exp_08-26_20:15:15/controlnet/version_0/checkpoints/epoch=7-step=99999.ckpt'
+model_path = 'experiment/exp_08-26_20:15:15/controlnet/version_0/checkpoints/epoch=15-step=199999.ckpt'
 model.load_state_dict(load_state_dict(model_path, location='cuda'))
 model = model.cuda()
 ddim_sampler = DDIMSampler(model)
