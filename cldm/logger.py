@@ -38,7 +38,7 @@ class ImageLogger(Callback):
             path = os.path.join(root, k, filename)
             os.makedirs(os.path.split(path)[0], exist_ok=True)
             os.makedirs(os.path.join(root, k), exist_ok=True)
-            Image.fromarray(grid[:,:,::-1]).save(path)
+            Image.fromarray(grid).save(path)
 
     def log_img(self, pl_module, batch, batch_idx, split="train"):
         check_idx = batch_idx  # if self.log_on_batch_idx else pl_module.global_step

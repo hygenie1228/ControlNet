@@ -152,6 +152,7 @@ def process(input_image, debug_txt, x, y, num_samples, ddim_steps, strength, sca
 
     with torch.no_grad():
         input_image = HWC3(input_image)
+        input_image = cv2.cvtColor(input_image, cv2.COLOR_GRAY2RGB)
         img = resize_image(input_image, image_resolution)
         img = img.astype(np.float32) / 255.0
         img = transforms.ToTensor()(img).unsqueeze(0).cuda()

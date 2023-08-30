@@ -79,6 +79,8 @@ for i, data in tqdm(enumerate(datalist)):
 
     depth_path = taget_img_path.replace('/img', '/depth').replace('.jpg', '.png')
     control_img = cv2.imread(depth_path)
+    input_img = cv2.cvtColor(input_img, cv2.COLOR_BGR2RGB)
+    control_img = cv2.cvtColor(control_img, cv2.COLOR_BGR2RGB)
 
     input_img = cv2.resize(input_img, (image_resolution, image_resolution))
     control_img = cv2.resize(control_img, (image_resolution, image_resolution))
@@ -128,4 +130,4 @@ for i, data in tqdm(enumerate(datalist)):
 
         x_samples = model.decode_first_stage(samples)
         x_samples = (einops.rearrange(x_samples, 'b c h w -> b h w c') * 127.5 + 127.5).cpu().numpy().clip(0, 255).astype(np.uint8)
-        cv2.imwrite(osp.join(save_folder_path, f'{i:04d}.png'), x_samples[0])
+        cv2.imwrite(osp.join(save_folder_path, f'{i:04d}.png'), x_samples[0][:,:,::-1])
