@@ -16,6 +16,7 @@ experiment
 demo
 data
 ControlNet
+CLIP
 
 gradio_pose2image_private.py
 gradio_canny2image_private.py
