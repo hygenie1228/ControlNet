@@ -79,6 +79,8 @@ for i, data in tqdm(enumerate(datalist)):
 
     depth_path = taget_img_path.replace('/img', '/depth').replace('.jpg', '.png')
     control_img = cv2.imread(depth_path)
+    # normal_path = taget_img_path.replace('/img', '/normal').replace('.jpg', '.png')
+    # control_img = cv2.imread(normal_path)
     input_img = cv2.cvtColor(input_img, cv2.COLOR_BGR2RGB)
     control_img = cv2.cvtColor(control_img, cv2.COLOR_BGR2RGB)
 

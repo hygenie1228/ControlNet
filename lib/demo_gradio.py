@@ -11,6 +11,7 @@ import config
 import cv2
 import einops
 import gradio as gr
+from PIL import Image
 import numpy as np
 import torch
 from torchvision import transforms
@@ -26,6 +27,15 @@ from annotator.util import resize_image, HWC3
 from annotator.openpose import OpenposeDetector
 from cldm.model import create_model, load_state_dict
 from cldm.ddim_hacked import DDIMSampler
+
+
+# Configs
+image_resolution = 256
+model = create_model('./models/zero123.yaml').cpu()
+model_path = 'experiment/exp_08-26_20:15:15/controlnet/version_0/checkpoints/epoch=21-step=274999.ckpt'
+model.load_state_dict(load_state_dict(model_path, location='cuda'))
+model = model.cuda()
+ddim_sampler = DDIMSampler(model)
 
 
 def make_rotate(rx, ry, rz):
@@ -137,22 +147,13 @@ class Renderer:
 
 
 
-# Configs
-image_resolution = 256
-model = create_model('./models/zero123.yaml').cpu()
-model_path = 'experiment/exp_08-26_20:15:15/controlnet/version_0/checkpoints/epoch=15-step=199999.ckpt'
-model.load_state_dict(load_state_dict(model_path, location='cuda'))
-model = model.cuda()
-ddim_sampler = DDIMSampler(model)
-
-
 def process(input_image, debug_txt, x, y, num_samples, ddim_steps, strength, scale, seed, eta):
     if input_image is None: return
     seed_everything(seed) 
 
     with torch.no_grad():
+        input_image = cv2.cvtColor(input_image, cv2.COLOR_BGR2RGB)
         input_image = HWC3(input_image)
-        input_image = cv2.cvtColor(input_image, cv2.COLOR_GRAY2RGB)
         img = resize_image(input_image, image_resolution)
         img = img.astype(np.float32) / 255.0
         img = transforms.ToTensor()(img).unsqueeze(0).cuda()
@@ -168,8 +169,8 @@ def process(input_image, debug_txt, x, y, num_samples, ddim_steps, strength, sca
         else:
             assert 0 
 
-        if config.save_memory:
-            model.low_vram_shift(is_diffusing=True)
+        # if config.save_memory:
+        #     model.low_vram_shift(is_diffusing=True)
 
         mesh = trimesh.load(mesh_path, process=False, maintain_order=True)
         mesh = mesh.copy()
@@ -206,13 +207,12 @@ def process(input_image, debug_txt, x, y, num_samples, ddim_steps, strength, sca
                                                         unconditional_guidance_scale=scale,
                                                         unconditional_conditioning=un_cond)
 
-        if config.save_memory:
-            model.low_vram_shift(is_diffusing=False)
+        # if config.save_memory:
+        #     model.low_vram_shift(is_diffusing=False)
 
         x_samples = model.decode_first_stage(samples)
         x_samples = (einops.rearrange(x_samples, 'b c h w -> b h w c') * 127.5 + 127.5).cpu().numpy().clip(0, 255).astype(np.uint8)    
-        results = [x_samples[i] for i in range(len(x_samples))]
-
+        results = [x_samples[i][:,:,::-1].astype(np.uint8) for i in range(len(x_samples))]
 
     return [depth] + results
 

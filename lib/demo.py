@@ -156,7 +156,7 @@ class Renderer:
 # Configs
 image_resolution = 256
 model = create_model('./models/zero123.yaml').cpu()
-model_path = 'experiment/exp_08-26_20:15:15/controlnet/version_0/checkpoints/epoch=7-step=99999.ckpt'
+model_path = 'experiment/exp_08-30_22:49:02/controlnet/version_0/checkpoints/epoch=21-step=274999.ckpt'
  
 model.load_state_dict(load_state_dict(model_path, location='cuda'))
 model = model.cuda()
@@ -187,7 +187,7 @@ data = datalist[0]
 img_path = osp.join(img_dir, data['input_img_path'])
 input_img = cv2.imread(img_path)
 input_img = cv2.resize(input_img, (image_resolution, image_resolution))
-cv2.imwrite('debug4.png', input_img)
+cv2.imwrite('debug.png', input_img)
 input_image = HWC3(input_img)
 H, W, C = input_img.shape
 
@@ -215,7 +215,7 @@ for i in tqdm(range(180)):
         depth = renderer.render(depth, mesh)
         depth = cv2.resize(depth, (image_resolution, image_resolution)).astype(np.uint8)
         depth = cv2.cvtColor(depth.astype(np.uint8), cv2.COLOR_GRAY2RGB)
-        c_control = depth.astype(np.float32) / 255.0
+        c_control = input_img.astype(np.float32) / 255.0
         c_control = transforms.ToTensor()(c_control).unsqueeze(0).cuda()
         c_control = c_control * 2 - 1 
     
@@ -242,5 +242,5 @@ for i in tqdm(range(180)):
 
         x_samples = model.decode_first_stage(samples)
         x_samples = (einops.rearrange(x_samples, 'b c h w -> b h w c') * 127.5 + 127.5).cpu().numpy().clip(0, 255).astype(np.uint8)
-        cv2.imwrite(osp.join('debug4', f'{i:04d}.png'), x_samples[0][:,:,::-1])
+        cv2.imwrite(osp.join('debug', f'{i:04d}.png'), x_samples[0][:,:,::-1])
 
