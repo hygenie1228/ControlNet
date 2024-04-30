@@ -29,16 +29,11 @@ class MyDataset(Dataset):
         source = cv2.cvtColor(source, cv2.COLOR_BGR2RGB)
         target = cv2.cvtColor(target, cv2.COLOR_BGR2RGB)
 
-        source = cv2.resize(source, (256, 256))
-        target = cv2.resize(target, (256, 256))
-        
-        source = np.concatenate((np.zeros_like(source) ,source), -1)
-
         # Normalize source images to [0, 1].
         source = source.astype(np.float32) / 255.0
 
         # Normalize target images to [-1, 1].
         target = (target.astype(np.float32) / 127.5) - 1.0
 
-        return dict(jpg=target, txt=prompt, hint=source, pose=np.zeros((10,)))
+        return dict(jpg=target, txt=prompt, hint=source)
 

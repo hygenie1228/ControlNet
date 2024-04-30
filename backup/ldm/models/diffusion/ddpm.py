@@ -582,6 +582,13 @@ class LatentDiffusion(DDPM):
             assert self.use_ema
             self.model_ema.reset_num_updates()
 
+        # construct linear projection layer for concatenating image CLIP embedding and RT
+        self.cc_projection = nn.Linear(772, 768)
+        nn.init.eye_(list(self.cc_projection.parameters())[0][:768, :768])
+        nn.init.zeros_(list(self.cc_projection.parameters())[1])
+        self.cc_projection.requires_grad_(True)
+
+
     def make_cond_schedule(self, ):
         self.cond_ids = torch.full(size=(self.num_timesteps,), fill_value=self.num_timesteps - 1, dtype=torch.long)
         ids = torch.round(torch.linspace(0, self.num_timesteps - 1, self.num_timesteps_cond)).long()
@@ -772,20 +779,27 @@ class LatentDiffusion(DDPM):
             x = x[:bs]
         x = x.to(self.device)
         encoder_posterior = self.encode_first_stage(x)
+        # z = encoder_posterior.mode().detach()
         z = self.get_first_stage_encoding(encoder_posterior).detach()
 
         if self.model.conditioning_key is not None and not self.force_null_conditioning:
             if cond_key is None:
                 cond_key = self.cond_stage_key
             if cond_key != self.first_stage_key:
-                if cond_key in ['caption', 'coordinates_bbox', "txt"]:
-                    xc = batch[cond_key]
-                elif cond_key in ['class_label', 'cls']:
-                    xc = batch
-                else:
-                    xc = super().get_input(batch, cond_key).to(self.device)
+                # if cond_key in ['caption', 'coordinates_bbox', "txt"]:
+                #     xc = batch[cond_key]
+                # elif cond_key in ['class_label', 'cls']:
+                #     xc = batch
+                # else:
+                #     xc = super().get_input(batch, cond_key).to(self.device)
+                xc = batch[cond_key]
+                xc0 = self.encode_first_stage(xc).mode().detach()
             else:
                 xc = x
+
+            # import pdb; pdb.set_trace()
+            ##### !!!!! #####
+            ### conditioning ###
             if not self.cond_stage_trainable or force_c_encode:
                 if isinstance(xc, dict) or isinstance(xc, list):
                     c = self.get_learned_conditioning(xc)
@@ -807,7 +821,9 @@ class LatentDiffusion(DDPM):
             if self.use_positional_encodings:
                 pos_x, pos_y = self.compute_latent_shifts(batch)
                 c = {'pos_x': pos_x, 'pos_y': pos_y}
-        out = [z, c]
+
+        cond = {'xc': xc0, 'c': c}
+        out = [z, cond]
         if return_first_stage_outputs:
             xrec = self.decode_first_stage(z)
             out.extend([x, xrec])

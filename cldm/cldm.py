@@ -315,39 +315,26 @@ class ControlLDM(LatentDiffusion):
 
     @torch.no_grad()
     def get_input(self, batch, k, bs=None, *args, **kwargs):
-        # Data pre-processing
-        x, cond = super().get_input(batch, self.first_stage_key, *args, **kwargs)
+        x, c = super().get_input(batch, self.first_stage_key, *args, **kwargs)
         control = batch[self.control_key]
         if bs is not None:
             control = control[:bs]
         control = control.to(self.device)
+        control = einops.rearrange(control, 'b h w c -> b c h w')
         control = control.to(memory_format=torch.contiguous_format).float()
-        
-        T = batch['pose'].to(self.device)
-        T = T.to(memory_format=torch.contiguous_format).float()
-
-        source, c = cond['xc'], cond['c']
-        c = torch.cat([c, T[:,None]], dim=-1)
-        c = self.cc_projection(c)
-        return x, dict(c_concat=[source], c_crossattn=[c], c_control=[control])
+        return x, dict(c_crossattn=[c], c_concat=[control])
 
     def apply_model(self, x_noisy, t, cond, *args, **kwargs):
         assert isinstance(cond, dict)
         diffusion_model = self.model.diffusion_model
 
-        if 'c_crossattn' not in cond:
-            cond_txt = torch.zeros((len(x_noisy), 1, 768)).to(x_noisy.device)
-        else:
-            cond_txt = torch.cat(cond['c_crossattn'], 1)
-        
-        x_noisy = torch.cat([x_noisy] + cond['c_concat'], dim=1)
-        
-        if 'c_control' not in cond:
+        cond_txt = torch.cat(cond['c_crossattn'], 1)
+
+        if cond['c_concat'] is None:
             eps = diffusion_model(x=x_noisy, timesteps=t, context=cond_txt, control=None, only_mid_control=self.only_mid_control)
         else:
-            control = self.control_model(x=x_noisy, hint=torch.cat(cond['c_control'], 1), timesteps=t, context=cond_txt)
+            control = self.control_model(x=x_noisy, hint=torch.cat(cond['c_concat'], 1), timesteps=t, context=cond_txt)
             control = [c * scale for c, scale in zip(control, self.control_scales)]
-
             eps = diffusion_model(x=x_noisy, timesteps=t, context=cond_txt, control=control, only_mid_control=self.only_mid_control)
 
         return eps
@@ -359,44 +346,19 @@ class ControlLDM(LatentDiffusion):
     @torch.no_grad()
     def log_images(self, batch, N=4, n_row=2, sample=False, ddim_steps=50, ddim_eta=0.0, return_keys=None,
                    quantize_denoised=True, inpaint=True, plot_denoise_rows=False, plot_progressive_rows=True,
-                   plot_diffusion_rows=False, unconditional_guidance_scale=3.0, unconditional_guidance_label=None,
+                   plot_diffusion_rows=False, unconditional_guidance_scale=9.0, unconditional_guidance_label=None,
                    use_ema_scope=True,
                    **kwargs):
         use_ddim = ddim_steps is not None
 
-        # import numpy as np
-        # import torch
-        # import cv2
-        # import math
-        # from torchvision import transforms
-        # input_img = cv2.imread('/home/namhj/ControlNet/input.png')[:,:,::-1]
-        # input_img = cv2.resize(input_img, (256, 256))
-        # input_im = (input_img / 255.0).astype(np.float32)
-        # input_im = transforms.ToTensor()(input_im).unsqueeze(0)
-        # input_im = input_im * 2 - 1
-        # input_im = input_im.to(self.device)
-        # x, y, z = 0, 90, 0
-        # cc = self.get_learned_conditioning(input_im).tile(1, 1, 1)
-        # T = torch.tensor([math.radians(x), math.sin(math.radians(y)), math.cos(math.radians(y)), z])
-        # T = T[None, None, :].repeat(1, 1, 1).to(cc.device)
-        # cc = torch.cat([cc, T], dim=-1)
-        # cc = self.cc_projection(cc)
-        # cond1 = {}
-        # cond1['c_crossattn'] = [cc]
-        # cond1['c_concat'] = [self.encode_first_stage((input_im.to(cc.device))).mode().detach().repeat(1, 1, 1, 1)]
-        # un_cond1 = {}
-        # un_cond1['c_concat'] = [torch.zeros(1, 4, 32, 32).to(cc.device)]
-        # un_cond1['c_crossattn'] = [torch.zeros_like(cc).to(cc.device)]
-
         log = dict()
         z, c = self.get_input(batch, self.first_stage_key, bs=N)
-        # c_cat, c = c["c_concat"][0][:N], c["c_crossattn"][0][:N]
+        c_cat, c = c["c_concat"][0][:N], c["c_crossattn"][0][:N]
         N = min(z.shape[0], N)
         n_row = min(z.shape[0], n_row)
         log["reconstruction"] = self.decode_first_stage(z)
-        log["input"] = batch['source']
-        log["conditioning"] = batch['hint']
-        # log["conditioning"] = log_txt_as_img((512, 512), batch[self.cond_stage_key], size=16)
+        log["control"] = c_cat * 2.0 - 1.0
+        log["conditioning"] = log_txt_as_img((512, 512), batch[self.cond_stage_key], size=16)
 
         if plot_diffusion_rows:
             # get diffusion row
@@ -428,13 +390,10 @@ class ControlLDM(LatentDiffusion):
                 log["denoise_row"] = denoise_grid
 
         if unconditional_guidance_scale > 1.0:
-            # uc_cross = self.get_unconditional_conditioning(N)
-            c_cat, cc, c_control = c['c_concat'][0], c['c_crossattn'][0], c['c_control'][0]
-            uc_cat = torch.zeros_like(c_cat).to(cc.device)
-            uc_crossattn = torch.zeros_like(cc).to(cc.device)
-            uc_full = {"c_concat": [uc_cat], 'c_crossattn': [uc_crossattn]}
-
-            samples_cfg, _ = self.sample_log(cond=c,
+            uc_cross = self.get_unconditional_conditioning(N)
+            uc_cat = c_cat  # torch.zeros_like(c_cat)
+            uc_full = {"c_concat": [uc_cat], "c_crossattn": [uc_cross]}
+            samples_cfg, _ = self.sample_log(cond={"c_concat": [c_cat], "c_crossattn": [c]},
                                              batch_size=N, ddim=use_ddim,
                                              ddim_steps=ddim_steps, eta=ddim_eta,
                                              unconditional_guidance_scale=unconditional_guidance_scale,
@@ -449,7 +408,7 @@ class ControlLDM(LatentDiffusion):
     def sample_log(self, cond, batch_size, ddim, ddim_steps, **kwargs):
         ddim_sampler = DDIMSampler(self)
         b, c, h, w = cond["c_concat"][0].shape
-        shape = (self.channels, h, w)
+        shape = (self.channels, h // 8, w // 8)
         samples, intermediates = ddim_sampler.sample(ddim_steps, batch_size, shape, cond, verbose=False, **kwargs)
         return samples, intermediates
 
