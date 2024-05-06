@@ -1,35 +1,39 @@
 import json
 import cv2
 import numpy as np
+import os
+import os.path as osp
 
 from torch.utils.data import Dataset
 
+import glob
 
 class MyDataset(Dataset):
     def __init__(self):
-        self.data = []
-        with open('./training/fill50k/prompt.json', 'rt') as f:
-            for line in f:
-                self.data.append(json.loads(line))
+        self.db = json.load(open('data/deepfashion/deepfashion_train.json'))
+
 
     def __len__(self):
-        return len(self.data)
+        return len(self.db)
 
     def __getitem__(self, idx):
-        item = self.data[idx]
+        data = self.db[idx]
+        path, prompt = data['path'], data['prompt']
 
-        source_filename = item['source']
-        target_filename = item['target']
-        prompt = item['prompt']
+        name = path.split('/')[-1]
+        source_filename = path
+        target_filename = path.replace(name, 'image.png')
+        prompt = prompt
 
-        source = cv2.imread('./training/fill50k/' + source_filename)
-        target = cv2.imread('./training/fill50k/' + target_filename)
+        source = cv2.imread(source_filename, 0)
+        source = cv2.resize(source, (512,512))[:,:,None]
+        target = cv2.imread(target_filename)
+        target = cv2.resize(target, (512, 512))
+        target = (target * (source>128))
 
         # Do not forget that OpenCV read images in BGR order.
         # source = cv2.cvtColor(source, cv2.COLOR_BGR2RGB)
         target = cv2.cvtColor(target, cv2.COLOR_BGR2RGB)
-        source = cv2.cvtColor(source, cv2.COLOR_BGR2GRAY)
-        source = source[:,:,None]
 
         # Normalize source images to [0, 1].
         source = source.astype(np.float32) / 255.0

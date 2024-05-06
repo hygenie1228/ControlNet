@@ -9,7 +9,7 @@ import pytorch_lightning as pl
 from pytorch_lightning import loggers as pl_loggers
 from pytorch_lightning.callbacks import ModelCheckpoint
 from torch.utils.data import DataLoader
-from tutorial_dataset import MyDataset
+from dataset2 import MyDataset
 from cldm.logger import ImageLogger
 from cldm.model import create_model, load_state_dict
 
@@ -18,9 +18,9 @@ from cldm.model import create_model, load_state_dict
 # Configs
 resume_path = './models/control_sd15_ini.ckpt'
 batch_size = 4
-logger_freq = 300
-learning_rate = 1e-5
-sd_locked = True
+logger_freq = 500
+learning_rate = 2e-5 #1e-5
+sd_locked = False
 only_mid_control = False
 
 
@@ -46,11 +46,11 @@ os.system(f'cp -r lib {save_codes_path}')
 
 # Misc
 dataset = MyDataset()
-dataloader = DataLoader(dataset, num_workers=0, batch_size=batch_size, shuffle=True)
+dataloader = DataLoader(dataset, num_workers=2, batch_size=batch_size, shuffle=True)
 logger = ImageLogger(batch_frequency=logger_freq)
 tb_logger = pl_loggers.TensorBoardLogger(save_dir=save_folder_path, name='controlnet')
-ckpt_callback = ModelCheckpoint(every_n_train_steps=5000, save_top_k=-1) # ModelCheckpoint(every_n_epochs=2, save_top_k=-1)
-trainer = pl.Trainer(max_epochs=5, gpus=1, precision=32, logger=tb_logger, callbacks=[ckpt_callback, logger])
+ckpt_callback = ModelCheckpoint(every_n_train_steps=20000, save_top_k=-1) # ModelCheckpoint(every_n_epochs=2, save_top_k=-1)
+trainer = pl.Trainer(max_epochs=30, gpus=1, precision=32, logger=tb_logger, callbacks=[ckpt_callback, logger])
 
 # Train!
 trainer.fit(model, dataloader)
