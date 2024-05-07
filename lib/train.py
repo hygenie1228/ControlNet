@@ -17,18 +17,21 @@ from cldm.logger import ImageLogger
 from cldm.model import create_model, load_state_dict
 
 
+
 # Configs
-resume_path = 'models/zero123.ckpt'
+resume_path = './models/control_sd15_ini.ckpt'
 batch_size = 4
-logger_freq = 1000
-learning_rate = 1e-4
-sd_locked = True
+logger_freq = 500
+learning_rate = 2e-5 #1e-5
+sd_locked = False
 only_mid_control = False
 
 
 # First use cpu to load models. Pytorch Lightning will automatically move it to GPUs.
-model = create_model('./models/zero123.yaml').cpu()
-model.load_state_dict(load_state_dict(resume_path, location='cpu'), strict=False)
+model = create_model('./models/debug.yaml').cpu()
+ckpt = load_state_dict(resume_path, location='cpu')
+del ckpt['control_model.input_hint_block.0.weight']
+model.load_state_dict(ckpt, strict=False)
 model.learning_rate = learning_rate
 model.sd_locked = sd_locked
 model.only_mid_control = only_mid_control
@@ -49,8 +52,8 @@ dataset = MyDataset()
 dataloader = DataLoader(dataset, num_workers=0, batch_size=batch_size, shuffle=True)
 logger = ImageLogger(batch_frequency=logger_freq)
 tb_logger = pl_loggers.TensorBoardLogger(save_dir=save_folder_path, name='controlnet')
-ckpt_callback = ModelCheckpoint(every_n_epochs=2, save_top_k=-1)
-trainer = pl.Trainer(gpus=1, precision=32, logger=tb_logger, callbacks=[ckpt_callback, logger])
+ckpt_callback = ModelCheckpoint(every_n_train_steps=20000, save_top_k=-1) # ModelCheckpoint(every_n_epochs=2, save_top_k=-1)
+trainer = pl.Trainer(max_epochs=30, gpus=1, precision=32, logger=tb_logger, callbacks=[ckpt_callback, logger])
 
 # Train!
 trainer.fit(model, dataloader)
