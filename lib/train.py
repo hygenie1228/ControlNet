@@ -49,7 +49,7 @@ os.system(f'cp -r lib {save_codes_path}')
 
 # Misc
 dataset = MyDataset()
-dataloader = DataLoader(dataset, num_workers=0, batch_size=batch_size, shuffle=True)
+dataloader = DataLoader(dataset, num_workers=2, batch_size=batch_size, shuffle=True)
 logger = ImageLogger(batch_frequency=logger_freq)
 tb_logger = pl_loggers.TensorBoardLogger(save_dir=save_folder_path, name='controlnet')
 ckpt_callback = ModelCheckpoint(every_n_train_steps=20000, save_top_k=-1) # ModelCheckpoint(every_n_epochs=2, save_top_k=-1)
