@@ -87,7 +87,7 @@ def generate_patch_image(cvimg, bbox, scale, rot, shift, do_flip, out_shape):
 
 class MyDataset(Dataset):
     def __init__(self):
-        self.db = json.load(open('data/deepfashion2/deepfashion_train.json'))
+        self.db = json.load(open('data/deepfashion/deepfashion_train.json'))
 
 
     def __len__(self):
@@ -98,7 +98,7 @@ class MyDataset(Dataset):
         path, prompt = data['path'], data['prompt']
 
         name = path.split('/')[-1]
-        path = osp.join('data/deepfashion2', path)
+        path = osp.join('data/deepfashion', path)
         source_filename = path
         target_filename = path.replace(name, 'image.png')
 
