@@ -100,7 +100,7 @@ class MyDataset(Dataset):
         name = path.split('/')[-1]
         path = osp.join('data/deepfashion', path)
         source_filename = path
-        target_filename = path.replace(name, 'image.png')
+        target_filename = path.replace('_segm', '')
 
         source = cv2.imread(source_filename, 0)
         source = cv2.resize(source, (512,512))[:,:,None]
