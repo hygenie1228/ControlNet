@@ -104,18 +104,20 @@ class MyDataset(Dataset):
 
         source = cv2.imread(source_filename, 0)
         source = cv2.resize(source, (512,512))[:,:,None]
-        target = cv2.imread(target_filename)
-        target = cv2.resize(target, (512, 512))[:,:,:3]
+        target = cv2.imread(target_filename, -1)
+        target = cv2.resize(target, (512, 512))
+        target_mask = target[:,:,[3]]
+        target = target[:,:,:3]
         
         # augmentation
         scale, rot, shift, color_scale, do_flip = get_aug_config()
         target, trans, inv_trans = generate_patch_image(target, [0,0,512,512], scale, rot, shift, do_flip, (512,512))
         target = target * color_scale[None,None,:]
         target = np.clip(target, 0, 255)
-
         source = cv2.warpAffine(source, trans, (512,512), flags=cv2.INTER_LINEAR)
+        target_mask = cv2.warpAffine(target_mask, trans, (512,512), flags=cv2.INTER_LINEAR)
 
-        target_mask = (source>128) * 1.0
+        target_mask = (target_mask>128) * 1.0
         bg_colors = np.random.uniform(low=0.0, high=256, size=3).astype(np.uint8)
         bg_colors = np.ones_like(target) * bg_colors[None,None,:]
         target = target * target_mask[:,:,None] + bg_colors * (1-target_mask[:,:,None] )
