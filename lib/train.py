@@ -22,7 +22,7 @@ from cldm.model import create_model, load_state_dict
 resume_path = './models/control_sd15_ini.ckpt'
 batch_size = 4
 logger_freq = 500
-learning_rate = 2e-5 #1e-5
+learning_rate = 1e-5 #1e-5
 sd_locked = False
 only_mid_control = False
 
@@ -49,11 +49,11 @@ os.system(f'cp -r lib {save_codes_path}')
 
 # Misc
 dataset = MyDataset()
-dataloader = DataLoader(dataset, num_workers=0, batch_size=batch_size, shuffle=True)
+dataloader = DataLoader(dataset, num_workers=2, batch_size=batch_size, shuffle=True)
 logger = ImageLogger(batch_frequency=logger_freq)
 tb_logger = pl_loggers.TensorBoardLogger(save_dir=save_folder_path, name='controlnet')
 ckpt_callback = ModelCheckpoint(every_n_train_steps=20000, save_top_k=-1) # ModelCheckpoint(every_n_epochs=2, save_top_k=-1)
-trainer = pl.Trainer(max_epochs=40, gpus=1, precision=32, logger=tb_logger, callbacks=[ckpt_callback, logger])
+trainer = pl.Trainer(max_epochs=50, gpus=1, precision=32, logger=tb_logger, callbacks=[ckpt_callback, logger])
 
 # Train!
 trainer.fit(model, dataloader)
