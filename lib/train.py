@@ -28,7 +28,7 @@ only_mid_control = False
 
 
 # First use cpu to load models. Pytorch Lightning will automatically move it to GPUs.
-model = create_model('./models/debug.yaml').cpu()
+model = create_model('./models/cldm_v15.yaml').cpu()
 ckpt = load_state_dict(resume_path, location='cpu')
 del ckpt['control_model.input_hint_block.0.weight']
 model.load_state_dict(ckpt, strict=False)
@@ -49,10 +49,10 @@ os.system(f'cp -r lib {save_codes_path}')
 
 # Misc
 dataset = MyDataset()
-dataloader = DataLoader(dataset, num_workers=2, batch_size=batch_size, shuffle=True)
+dataloader = DataLoader(dataset, num_workers=0, batch_size=batch_size, shuffle=True)
 logger = ImageLogger(batch_frequency=logger_freq)
 tb_logger = pl_loggers.TensorBoardLogger(save_dir=save_folder_path, name='controlnet')
-ckpt_callback = ModelCheckpoint(every_n_train_steps=20000, save_top_k=-1) # ModelCheckpoint(every_n_epochs=2, save_top_k=-1)
+ckpt_callback = ModelCheckpoint(every_n_train_steps=10000, save_top_k=-1) # ModelCheckpoint(every_n_epochs=2, save_top_k=-1)
 trainer = pl.Trainer(max_epochs=50, gpus=1, precision=32, logger=tb_logger, callbacks=[ckpt_callback, logger])
 
 # Train!

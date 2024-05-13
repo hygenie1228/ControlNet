@@ -102,8 +102,8 @@ class MyDataset(Dataset):
         source_filename = path
         target_filename = path.replace('_segm', '')
 
-        source = cv2.imread(source_filename, 0)
-        source = cv2.resize(source, (512,512))[:,:,None]
+        source = cv2.imread(source_filename)
+        source = cv2.resize(source, (512,512))
         target = cv2.imread(target_filename, -1)
         target = cv2.resize(target, (512, 512))
         target_mask = target[:,:,[3]]
@@ -128,7 +128,6 @@ class MyDataset(Dataset):
 
         # Normalize source images to [0, 1].
         source = source.astype(np.float32) / 255.0
-        source = source[:,:,None]
 
         # Normalize target images to [-1, 1].
         target = (target.astype(np.float32) / 127.5) - 1.0
