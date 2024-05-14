@@ -88,17 +88,25 @@ def generate_patch_image(cvimg, bbox, scale, rot, shift, do_flip, out_shape):
 class MyDataset(Dataset):
     def __init__(self):
         self.db = json.load(open('data/deepfashion/deepfashion_train.json'))
+        self.db2 = json.load(open('data/thuman/thuman_train.json'))
 
+        self.dataset_idxs = ['deepfashion' for i in range(len(self.db))]
+        self.dataset_idxs2 = ['thuman' for i in range(len(self.db2))]
+        self.db = self.db + self.db2
+        self.dataset_idxs = self.dataset_idxs + self.dataset_idxs2
 
     def __len__(self):
         return len(self.db)
 
     def __getitem__(self, idx):
-        data = self.db[idx]
+        data, dataset_name = self.db[idx], self.dataset_idxs[idx]
         path, prompt = data['path'], data['prompt']
 
         name = path.split('/')[-1]
-        path = osp.join('data/deepfashion', path)
+        if dataset_name == 'deepfashion':
+            path = osp.join('data/deepfashion', path)
+        elif dataset_name == 'thuman':
+            path = osp.join('data/thuman', path)
         source_filename = path
         target_filename = path.replace('_segm', '')
 
