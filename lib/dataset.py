@@ -87,13 +87,32 @@ def generate_patch_image(cvimg, bbox, scale, rot, shift, do_flip, out_shape):
 
 class MyDataset(Dataset):
     def __init__(self):
-        self.db = json.load(open('data/deepfashion/deepfashion_train.json'))
-        self.db2 = json.load(open('data/thuman/thuman_train.json'))
+        self.db = []
+        self.dataset_idxs = []
 
-        self.dataset_idxs = ['deepfashion' for i in range(len(self.db))]
-        self.dataset_idxs2 = ['thuman' for i in range(len(self.db2))]
-        self.db = self.db + self.db2
-        self.dataset_idxs = self.dataset_idxs + self.dataset_idxs2
+        # DeepFashion
+        if True:
+            db = json.load(open('data/deepfashion/deepfashion_train.json'))
+            dataset_idxs = ['deepfashion' for i in range(len(db))]
+            self.db = self.db + db
+            self.dataset_idxs = self.dataset_idxs + dataset_idxs
+
+        # THuman2.0
+        if True:
+            db = json.load(open('data/thuman/thuman_train.json'))
+            dataset_idxs = ['thuman' for i in range(len(db))]
+            self.db = self.db + db
+            self.dataset_idxs = self.dataset_idxs + dataset_idxs
+
+            self.db2 = json.load(open('data/thuman/thuman_train.json'))
+
+        # LIP
+        if True:
+            db = json.load(open('data/lip/lip_train.json'))
+            dataset_idxs = ['lip' for i in range(len(db))]
+            self.db = self.db + db
+            self.dataset_idxs = self.dataset_idxs + dataset_idxs
+        
 
     def __len__(self):
         return len(self.db)
@@ -101,12 +120,8 @@ class MyDataset(Dataset):
     def __getitem__(self, idx):
         data, dataset_name = self.db[idx], self.dataset_idxs[idx]
         path, prompt = data['path'], data['prompt']
-
-        name = path.split('/')[-1]
-        if dataset_name == 'deepfashion':
-            path = osp.join('data/deepfashion', path)
-        elif dataset_name == 'thuman':
-            path = osp.join('data/thuman', path)
+        path = osp.join(f'data/{dataset_name}', path)
+        
         source_filename = path
         target_filename = path.replace('_segm', '')
 
