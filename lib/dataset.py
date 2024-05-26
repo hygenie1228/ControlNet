@@ -112,6 +112,20 @@ class MyDataset(Dataset):
             dataset_idxs = ['lip' for i in range(len(db))]
             self.db = self.db + db
             self.dataset_idxs = self.dataset_idxs + dataset_idxs
+
+        # SHHQ
+        if True:
+            db = json.load(open('data/shhq/shhq_train.json'))
+            dataset_idxs = ['shhq' for i in range(len(db))]
+            self.db = self.db + db
+            self.dataset_idxs = self.dataset_idxs + dataset_idxs
+
+        # HuMMan
+        if True:
+            db = json.load(open('data/humman/humman_train.json'))
+            dataset_idxs = ['humman' for i in range(len(db))]
+            self.db = self.db + db
+            self.dataset_idxs = self.dataset_idxs + dataset_idxs
         
 
     def __len__(self):
